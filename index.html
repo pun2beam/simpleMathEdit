@@ -21,7 +21,8 @@
     .wrap { display: flex; height: 100vh; }
     .pane { padding: 12px; box-sizing: border-box; overflow: hidden; min-width: 0; flex: 1 1 0; }
     textarea { width: 99%; height: 99%; resize: none; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .preview { border-left: 1px solid #ddd; }
+    .preview { border-left: 1px solid #ddd; overflow: auto; }
+    #out { min-height: 100%; padding-bottom: 24px; }
     .hint { color: #666; font-size: 12px; margin-bottom: 8px; }
     .resizer {
       width: 6px;
@@ -67,6 +68,20 @@ $$
     let timer = null;
     let dragging = false;
 
+    function syncScrollFromSource() {
+      const outMax = out.scrollHeight - rightPane.clientHeight;
+      if (outMax <= 0) {
+        rightPane.scrollTop = 0;
+        return;
+      }
+      const caretIndex = src.selectionStart ?? 0;
+      const beforeCaret = src.value.slice(0, caretIndex);
+      const caretLine = beforeCaret.split('\n').length;
+      const totalLines = Math.max(src.value.split('\n').length, 1);
+      const ratio = Math.min(Math.max((caretLine - 1) / Math.max(totalLines - 1, 1), 0), 1);
+      rightPane.scrollTop = ratio * outMax;
+    }
+
     async function render() {
       // HTMLとして解釈させず「テキストとして」入れる（XSS対策）
       out.textContent = src.value;
@@ -76,6 +91,7 @@ $$
 
       // 右ペインだけ再レンダリング
       await MathJax.typesetPromise([out]);
+      syncScrollFromSource();
     }
 
     // 入力のたびに即レンダリングすると重いので軽くデバウンス
@@ -83,6 +99,9 @@ $$
       clearTimeout(timer);
       timer = setTimeout(render, 120);
     });
+    src.addEventListener('scroll', syncScrollFromSource);
+    src.addEventListener('click', syncScrollFromSource);
+    src.addEventListener('keyup', syncScrollFromSource);
 
     // 初回描画
     window.addEventListener('load', render);
