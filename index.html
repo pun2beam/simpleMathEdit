@@ -23,6 +23,16 @@
     textarea { width: 99%; height: 99%; resize: none; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .preview { border-left: 1px solid #ddd; overflow: auto; }
     #out { min-height: 100%; padding-bottom: 24px; }
+    #caret-marker {
+      display: inline-block;
+      min-width: 6px;
+      padding: 0 2px;
+      margin: 0 1px;
+      color: #b00020;
+      background: rgba(255, 214, 102, 0.7);
+      border-radius: 2px;
+      font-weight: 700;
+    }
     .hint { color: #666; font-size: 12px; margin-bottom: 8px; }
     .resizer {
       width: 6px;
@@ -64,9 +74,21 @@ $$
     const resizer = document.getElementById('resizer');
     const leftPane = document.getElementById('left-pane');
     const rightPane = document.getElementById('right-pane');
-
     let timer = null;
     let dragging = false;
+
+    function setOutWithCaret() {
+      const caretIndex = src.selectionStart ?? 0;
+      out.textContent = '';
+      out.append(document.createTextNode(src.value.slice(0, caretIndex)));
+      const marker = document.createElement('span');
+      marker.id = 'caret-marker';
+      marker.textContent = '▌';
+      marker.setAttribute('aria-hidden', 'true');
+      marker.setAttribute('data-mjx-skip', 'true');
+      out.append(marker);
+      out.append(document.createTextNode(src.value.slice(caretIndex)));
+    }
 
     function syncScrollFromSource() {
       const outMax = out.scrollHeight - rightPane.clientHeight;
@@ -79,12 +101,13 @@ $$
       const caretLine = beforeCaret.split('\n').length;
       const totalLines = Math.max(src.value.split('\n').length, 1);
       const ratio = Math.min(Math.max((caretLine - 1) / Math.max(totalLines - 1, 1), 0), 1);
-      rightPane.scrollTop = ratio * outMax;
+      const targetScrollTop = ratio * outMax;
+      rightPane.scrollTop = targetScrollTop;
     }
 
     async function render() {
       // HTMLとして解釈させず「テキストとして」入れる（XSS対策）
-      out.textContent = src.value;
+      setOutWithCaret();
 
       // MathJaxの準備完了待ち（初回読み込み中の事故防止）
       if (!window.MathJax || !MathJax.typesetPromise) return;
