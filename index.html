@@ -120,14 +120,17 @@ $$
       syncScrollFromSource();
     }
 
-    // 入力のたびに即レンダリングすると重いので軽くデバウンス
-    src.addEventListener('input', () => {
+    function scheduleRender() {
       clearTimeout(timer);
       timer = setTimeout(render, 120);
-    });
+    }
+
+    // 入力のたびに即レンダリングすると重いので軽くデバウンス
+    src.addEventListener('input', scheduleRender);
     src.addEventListener('scroll', syncScrollFromSource);
-    src.addEventListener('click', syncScrollFromSource);
-    src.addEventListener('keyup', syncScrollFromSource);
+    src.addEventListener('click', scheduleRender);
+    src.addEventListener('keyup', scheduleRender);
+    src.addEventListener('select', scheduleRender);
 
     // 初回描画
     window.addEventListener('load', render);
