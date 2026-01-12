@@ -18,16 +18,28 @@
 
   <style>
     body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
-    .wrap { display: grid; grid-template-columns: 1fr 1fr; height: 100vh; }
-    .pane { padding: 12px; box-sizing: border-box; overflow: auto; }
+    .wrap { display: flex; height: 100vh; }
+    .pane { padding: 12px; box-sizing: border-box; overflow: auto; min-width: 0; flex: 1 1 0; }
     textarea { width: 100%; height: 100%; resize: none; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .preview { border-left: 1px solid #ddd; }
     .hint { color: #666; font-size: 12px; margin-bottom: 8px; }
+    .resizer {
+      width: 6px;
+      background: #f0f0f0;
+      border-left: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+      cursor: col-resize;
+      flex: 0 0 6px;
+    }
+    .resizer:hover,
+    .resizer.dragging {
+      background: #e0e0e0;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="pane">
+    <div class="pane" id="left-pane">
       <div class="hint">edit</div>
       <textarea id="src">
 インライン: $E=mc^2$
@@ -39,7 +51,9 @@ $$
       </textarea>
     </div>
 
-    <div class="pane preview">
+    <div class="resizer" id="resizer" role="separator" aria-label="Resize panes" aria-orientation="vertical"></div>
+
+    <div class="pane preview" id="right-pane">
       <div class="hint">preview</div>
       <div id="out"></div>
     </div>
@@ -48,8 +62,12 @@ $$
   <script>
     const src = document.getElementById('src');
     const out = document.getElementById('out');
+    const resizer = document.getElementById('resizer');
+    const leftPane = document.getElementById('left-pane');
+    const rightPane = document.getElementById('right-pane');
 
     let timer = null;
+    let dragging = false;
 
     async function render() {
       // HTMLとして解釈させず「テキストとして」入れる（XSS対策）
@@ -70,6 +88,39 @@ $$
 
     // 初回描画
     window.addEventListener('load', render);
+
+    function setPaneWidths(clientX) {
+      const wrapRect = resizer.parentElement.getBoundingClientRect();
+      const minPaneWidth = 160;
+      const maxLeft = wrapRect.width - minPaneWidth - resizer.offsetWidth;
+      const nextLeft = Math.min(Math.max(clientX - wrapRect.left, minPaneWidth), maxLeft);
+      const rightWidth = wrapRect.width - nextLeft - resizer.offsetWidth;
+      leftPane.style.flex = `0 0 ${nextLeft}px`;
+      rightPane.style.flex = `0 0 ${rightWidth}px`;
+    }
+
+    resizer.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      resizer.classList.add('dragging');
+      resizer.setPointerCapture(event.pointerId);
+      setPaneWidths(event.clientX);
+    });
+
+    resizer.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      setPaneWidths(event.clientX);
+    });
+
+    resizer.addEventListener('pointerup', (event) => {
+      dragging = false;
+      resizer.classList.remove('dragging');
+      resizer.releasePointerCapture(event.pointerId);
+    });
+
+    resizer.addEventListener('pointercancel', () => {
+      dragging = false;
+      resizer.classList.remove('dragging');
+    });
   </script>
 </body>
 </html>
