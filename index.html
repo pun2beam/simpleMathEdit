@@ -81,12 +81,15 @@ $$
       const caretIndex = src.selectionStart ?? 0;
       out.textContent = '';
       out.append(document.createTextNode(src.value.slice(0, caretIndex)));
-      const marker = document.createElement('span');
-      marker.id = 'caret-marker';
-      marker.textContent = '▌';
-      marker.setAttribute('aria-hidden', 'true');
-      marker.setAttribute('data-mjx-skip', 'true');
-      out.append(marker);
+      // const marker = document.createElement('span');
+      // marker.id = 'caret-marker';
+      // marker.textContent = '▌';
+      // marker.setAttribute('aria-hidden', 'true');
+      // marker.setAttribute('data-mjx-skip', 'true');
+      // out.append(marker);
+      out.append(
+        document.createTextNode('←')
+      );
       out.append(document.createTextNode(src.value.slice(caretIndex)));
     }
 
@@ -164,6 +167,7 @@ $$
   </script>
 </body>
 </html>
+
 
 
 
