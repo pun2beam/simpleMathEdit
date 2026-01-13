@@ -103,8 +103,30 @@ $$
       rightPane.scrollTop = targetScrollTop;
     }
 
+    function normalizeDisplayMath(source) {
+      const lines = source.split('\n');
+      const normalized = [];
+      let inDisplay = false;
+
+      for (const line of lines) {
+        if (line.trim() === '$$') {
+          inDisplay = !inDisplay;
+          normalized.push('$$');
+          continue;
+        }
+
+        if (inDisplay && line.trim() === '') {
+          continue;
+        }
+
+        normalized.push(line);
+      }
+
+      return normalized.join('\n');
+    }
+
     async function render() {
-      const sourceWithCaret = buildSourceWithCaret();
+      const sourceWithCaret = normalizeDisplayMath(buildSourceWithCaret());
       // const html = marked.parse(sourceWithCaret);
       // out.innerHTML = html.replace(caretToken, caretHtml);
       out.innerHTML = marked.parse(sourceWithCaret);
