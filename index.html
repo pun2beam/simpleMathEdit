@@ -15,6 +15,7 @@
     };
   </script>
   <script defer src="./es5/tex-mml-chtml.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
     body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
@@ -77,20 +78,14 @@ $$
     let timer = null;
     let dragging = false;
 
-    function setOutWithCaret() {
+    marked.setOptions({ mangle: false, headerIds: false });
+
+    const caretToken = '{{__CARET__}}';
+    const caretHtml = '<span id="caret-marker" aria-hidden="true" data-mjx-skip="true">▌</span>';
+
+    function buildSourceWithCaret() {
       const caretIndex = src.selectionStart ?? 0;
-      out.textContent = '';
-      out.append(document.createTextNode(src.value.slice(0, caretIndex)));
-      // const marker = document.createElement('span');
-      // marker.id = 'caret-marker';
-      // marker.textContent = '▌';
-      // marker.setAttribute('aria-hidden', 'true');
-      // marker.setAttribute('data-mjx-skip', 'true');
-      // out.append(marker);
-      out.append(
-        document.createTextNode('←')
-      );
-      out.append(document.createTextNode(src.value.slice(caretIndex)));
+      return `${src.value.slice(0, caretIndex)}${caretToken}${src.value.slice(caretIndex)}`;
     }
 
     function syncScrollFromSource() {
@@ -109,8 +104,9 @@ $$
     }
 
     async function render() {
-      // HTMLとして解釈させず「テキストとして」入れる（XSS対策）
-      setOutWithCaret();
+      const sourceWithCaret = buildSourceWithCaret();
+      const html = marked.parse(sourceWithCaret);
+      out.innerHTML = html.replace(caretToken, caretHtml);
 
       // MathJaxの準備完了待ち（初回読み込み中の事故防止）
       if (!window.MathJax || !MathJax.typesetPromise) return;
