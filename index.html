@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="icon" href="./favicon.ico" sizes="any">
+  <link rel="stylesheet" href="./style.css" />
   <title>MathJax Live Preview</title>
 
   <!-- MathJax v3 -->
@@ -18,37 +19,6 @@
   <script defer src="./es5/tex-mml-chtml.js"></script>
   <script src="./marked/marked.min.js"></script>
 
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
-    .wrap { display: flex; height: 100vh; }
-    .pane { padding: 12px; box-sizing: border-box; overflow: hidden; min-width: 0; flex: 1 1 0; }
-    textarea { width: 99%; height: 99%; resize: none; font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .preview { border-left: 1px solid #ddd; overflow: auto; }
-    #out { min-height: 100%; padding-bottom: 24px; }
-    #caret-marker {
-      display: inline-block;
-      min-width: 6px;
-      padding: 0 2px;
-      margin: 0 1px;
-      color: #b00020;
-      background: rgba(255, 214, 102, 0.7);
-      border-radius: 2px;
-      font-weight: 700;
-    }
-    .hint { color: #666; font-size: 12px; margin-bottom: 8px; }
-    .resizer {
-      width: 6px;
-      background: #f0f0f0;
-      border-left: 1px solid #ddd;
-      border-right: 1px solid #ddd;
-      cursor: col-resize;
-      flex: 0 0 6px;
-    }
-    .resizer:hover,
-    .resizer.dragging {
-      background: #e0e0e0;
-    }
-  </style>
 </head>
 <body>
   <div class="wrap">
