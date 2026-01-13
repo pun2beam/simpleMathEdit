@@ -23,6 +23,13 @@
 <body>
   <div class="wrap">
     <div class="pane" id="left-pane">
+      <div class="editor-header">
+        <label class="file-label" for="file-name">ファイル名:</label>
+        <input id="file-name" type="text" placeholder="ファイル名" value="notes" />
+        <button id="save-button" type="button">Save</button>
+        <button id="load-button" type="button">Load</button>
+        <input id="file-input" type="file" accept=".md,text/markdown,text/plain" hidden />
+      </div>
       <textarea id="src">
 インライン: $E=mc^2$
 
@@ -46,6 +53,10 @@ $$
     const resizer = document.getElementById('resizer');
     const leftPane = document.getElementById('left-pane');
     const rightPane = document.getElementById('right-pane');
+    const fileNameInput = document.getElementById('file-name');
+    const saveButton = document.getElementById('save-button');
+    const loadButton = document.getElementById('load-button');
+    const fileInput = document.getElementById('file-input');
     let timer = null;
     let dragging = false;
 
@@ -100,6 +111,32 @@ $$
       return normalized.join('\n');
     }
 
+    function formatDateTime(date) {
+      const pad = (value) => String(value).padStart(2, '0');
+      return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}`;
+    }
+
+    function getBaseFileName() {
+      const rawName = fileNameInput.value.trim();
+      return rawName === '' ? 'notes' : rawName.replace(/\.md$/i, '');
+    }
+
+    function buildDownloadFileName(baseName) {
+      const timestamp = formatDateTime(new Date());
+      return `${baseName}_${timestamp}.md`;
+    }
+
+    function normalizeLoadedFileName(fileName) {
+      const match = fileName.match(/^(.*)_([0-9]+)\.md$/i);
+      if (match && /^[0-9]+$/.test(match[2])) {
+        return match[1];
+      }
+      if (/\.md$/i.test(fileName)) {
+        return fileName.replace(/\.md$/i, '');
+      }
+      return fileName;
+    }
+
     async function render() {
       const sourceWithCaret = normalizeDisplayMath(buildSourceWithCaret());
       // const html = marked.parse(sourceWithCaret);
@@ -125,6 +162,38 @@ $$
     src.addEventListener('click', scheduleRender);
     src.addEventListener('keyup', scheduleRender);
     src.addEventListener('select', scheduleRender);
+
+    saveButton.addEventListener('click', () => {
+      const baseName = getBaseFileName();
+      const downloadName = buildDownloadFileName(baseName);
+      const blob = new Blob([src.value], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = downloadName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+
+    loadButton.addEventListener('click', () => {
+      fileInput.value = '';
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (event) => {
+      const [file] = event.target.files;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        src.value = reader.result ?? '';
+        const normalizedName = normalizeLoadedFileName(file.name);
+        fileNameInput.value = normalizedName;
+        scheduleRender();
+      };
+      reader.readAsText(file);
+    });
 
     // 初回描画
     window.addEventListener('load', render);
