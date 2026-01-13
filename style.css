@@ -27,3 +27,15 @@ textarea { width: 99%; height: 99%; resize: none; font: 14px/1.4 ui-monospace, S
 .resizer.dragging {
   background: #e0e0e0;
 }
+table, th, td {
+  border: 1px solid;
+  border-collapse: collapse;
+}
+.divbox {
+  border: 1px solid;
+  background: #c8f7ba;
+}
+.dummybox{
+  border: 0px solid;
+  width:1%;
+}
