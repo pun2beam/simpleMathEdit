@@ -80,7 +80,7 @@ $$
 
     marked.setOptions({ mangle: false, headerIds: false });
 
-    const caretToken = '{{__CARET__}}';
+    const caretToken = '│';
     const caretHtml = '<span id="caret-marker" aria-hidden="true" data-mjx-skip="true">▌</span>';
 
     function buildSourceWithCaret() {
@@ -105,8 +105,9 @@ $$
 
     async function render() {
       const sourceWithCaret = buildSourceWithCaret();
-      const html = marked.parse(sourceWithCaret);
-      out.innerHTML = html.replace(caretToken, caretHtml);
+      // const html = marked.parse(sourceWithCaret);
+      // out.innerHTML = html.replace(caretToken, caretHtml);
+      out.innerHTML = marked.parse(sourceWithCaret);
 
       // MathJaxの準備完了待ち（初回読み込み中の事故防止）
       if (!window.MathJax || !MathJax.typesetPromise) return;
@@ -166,6 +167,7 @@ $$
   </script>
 </body>
 </html>
+
 
 
 
