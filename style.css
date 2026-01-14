@@ -7,6 +7,13 @@ textarea { width: 100%; flex: 1 1 auto; resize: none; font: 14px/1.4 ui-monospac
 .editor-header input { flex: 1 1 auto; min-width: 120px; padding: 4px 8px; font-size: 14px; }
 .editor-header button { padding: 4px 10px; font-size: 14px; }
 .file-label { font-size: 12px; color: #555; }
+.caret-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #333;
+}
 .preview { border-left: 1px solid #ddd; overflow: auto; }
 #out { min-height: 100%; padding-bottom: 24px; }
 #caret-marker {
