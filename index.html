@@ -198,8 +198,8 @@ $$
       return step;
     }
 
-    function compileExpression(expression) {
-      const normalized = expression
+    function normalizeExpression(expression) {
+      return expression
         .replace(/\bpi\b/gi, 'Math.PI')
         .replace(/\be\b/g, 'Math.E')
         .replace(/\bpower\s*\(/gi, 'Math.pow(')
@@ -207,21 +207,21 @@ $$
         .replace(/\bsin\s*\(/gi, 'Math.sin(')
         .replace(/\bcos\s*\(/gi, 'Math.cos(')
         .replace(/\btan\s*\(/gi, 'Math.tan(');
+    }
 
+    function compileExpression(expression) {
+      const normalized = normalizeExpression(expression);
       return new Function('x', '__log', `return (${normalized});`);
     }
 
     function compileSurfaceExpression(expression) {
-      const normalized = expression
-        .replace(/\bpi\b/gi, 'Math.PI')
-        .replace(/\be\b/g, 'Math.E')
-        .replace(/\bpower\s*\(/gi, 'Math.pow(')
-        .replace(/\blog\s*\(/gi, '__log(')
-        .replace(/\bsin\s*\(/gi, 'Math.sin(')
-        .replace(/\bcos\s*\(/gi, 'Math.cos(')
-        .replace(/\btan\s*\(/gi, 'Math.tan(');
-
+      const normalized = normalizeExpression(expression);
       return new Function('x', 'y', '__log', `return (${normalized});`);
+    }
+
+    function compileParametricExpression(expression) {
+      const normalized = normalizeExpression(expression);
+      return new Function('u', 'v', '__log', `return (${normalized});`);
     }
 
     function renderPlots(container) {
@@ -282,13 +282,27 @@ $$
       const plotBlocks = Array.from(container.querySelectorAll('plots3d'));
       plotBlocks.forEach((plotBlock) => {
         const axis = plotBlock.querySelector('axis');
-        const [xMin, xMax] = parseRangeAttribute(axis?.getAttribute('x'), [-5, 5]);
-        const [yMin, yMax] = parseRangeAttribute(axis?.getAttribute('y'), [-5, 5]);
-        const [zMin, zMax] = parseRangeAttribute(axis?.getAttribute('z'), [-5, 5]);
+        const axisXValue = axis?.getAttribute('x');
+        const axisYValue = axis?.getAttribute('y');
+        const axisZValue = axis?.getAttribute('z');
+        const axisUValue = axis?.getAttribute('u');
+        const axisVValue = axis?.getAttribute('v');
+        const [xMin, xMax] = parseRangeAttribute(axisXValue, [-5, 5]);
+        const [yMin, yMax] = parseRangeAttribute(axisYValue, [-5, 5]);
+        const [zMin, zMax] = parseRangeAttribute(axisZValue, [-5, 5]);
+        const [uMin, uMax] = parseRangeAttribute(axisUValue, [0, 1]);
+        const [vMin, vMax] = parseRangeAttribute(axisVValue, [0, 1]);
         const step = parseStepAttribute(axis?.getAttribute('step'), 0.5);
         const plotEntries = Array.from(plotBlock.querySelectorAll('surface'))
           .map((surfaceNode) => surfaceNode.getAttribute('z'))
           .filter(Boolean);
+        const parametricEntries = Array.from(plotBlock.querySelectorAll('parametric'))
+          .map((parametricNode) => ({
+            x: parametricNode.getAttribute('x'),
+            y: parametricNode.getAttribute('y'),
+            z: parametricNode.getAttribute('z'),
+          }))
+          .filter((entry) => entry.x && entry.y && entry.z);
 
         const wrapper = document.createElement('div');
         wrapper.className = 'plot-container';
@@ -298,7 +312,7 @@ $$
         canvas.className = 'plot-canvas';
         wrapper.appendChild(canvas);
 
-        if (plotEntries.length > 0) {
+        if (plotEntries.length > 0 || parametricEntries.length > 0) {
           const legend = document.createElement('div');
           legend.className = 'plot-legend';
           plotEntries.forEach((expression, index) => {
@@ -313,15 +327,57 @@ $$
             item.appendChild(label);
             legend.appendChild(item);
           });
+          parametricEntries.forEach((entry, index) => {
+            const item = document.createElement('div');
+            item.className = 'plot-legend-item';
+            const swatch = document.createElement('span');
+            swatch.className = 'plot-legend-swatch';
+            swatch.style.backgroundColor = plotColors[(index + plotEntries.length) % plotColors.length];
+            item.appendChild(swatch);
+            const label = document.createElement('span');
+            label.textContent = `parametric: x = ${entry.x}, y = ${entry.y}, z = ${entry.z}`;
+            item.appendChild(label);
+            legend.appendChild(item);
+          });
           wrapper.appendChild(legend);
         }
 
         plotBlock.replaceWith(wrapper);
-        drawPlot3d(canvas, plotEntries, { xMin, xMax, yMin, yMax, zMin, zMax, step });
+        drawPlot3d(canvas, plotEntries, parametricEntries, {
+          xMin,
+          xMax,
+          yMin,
+          yMax,
+          zMin,
+          zMax,
+          uMin,
+          uMax,
+          vMin,
+          vMax,
+          step,
+          axisHasX: axis?.hasAttribute('x') ?? false,
+          axisHasY: axis?.hasAttribute('y') ?? false,
+          axisHasZ: axis?.hasAttribute('z') ?? false,
+        });
 
         if (!plotResizeObservers.has(wrapper)) {
           const observer = new ResizeObserver(() => {
-            drawPlot3d(canvas, plotEntries, { xMin, xMax, yMin, yMax, zMin, zMax, step });
+            drawPlot3d(canvas, plotEntries, parametricEntries, {
+              xMin,
+              xMax,
+              yMin,
+              yMax,
+              zMin,
+              zMax,
+              uMin,
+              uMax,
+              vMin,
+              vMax,
+              step,
+              axisHasX: axis?.hasAttribute('x') ?? false,
+              axisHasY: axis?.hasAttribute('y') ?? false,
+              axisHasZ: axis?.hasAttribute('z') ?? false,
+            });
           });
           observer.observe(wrapper);
           plotResizeObservers.set(wrapper, observer);
@@ -432,8 +488,23 @@ $$
       ctx.fillText(`y: [${yMin}, ${yMax}]`, 8, height - 10);
     }
 
-    function drawPlot3d(canvas, plotEntries, range) {
-      const { xMin, xMax, yMin, yMax, zMin, zMax, step } = range;
+    function drawPlot3d(canvas, plotEntries, parametricEntries, range) {
+      const {
+        xMin,
+        xMax,
+        yMin,
+        yMax,
+        zMin,
+        zMax,
+        uMin,
+        uMax,
+        vMin,
+        vMax,
+        step,
+        axisHasX,
+        axisHasY,
+        axisHasZ,
+      } = range;
       const parent = canvas.parentElement;
       const parentStyles = parent ? window.getComputedStyle(parent) : null;
       const paddingLeft = parentStyles ? Number.parseFloat(parentStyles.paddingLeft) : 0;
@@ -471,12 +542,111 @@ $$
       }
 
       const logFn = (base, value) => Math.log(value) / Math.log(base);
-      const xSpan = xMax - xMin;
-      const ySpan = yMax - yMin;
-      const zSpan = zMax - zMin;
-      const xMid = (xMin + xMax) / 2;
-      const yMid = (yMin + yMax) / 2;
-      const zMid = (zMin + zMax) / 2;
+      let xMinFinal = xMin;
+      let xMaxFinal = xMax;
+      let yMinFinal = yMin;
+      let yMaxFinal = yMax;
+      let zMinFinal = zMin;
+      let zMaxFinal = zMax;
+
+      const hasParametric = parametricEntries.length > 0;
+      if (hasParametric) {
+        let bounds = null;
+        parametricEntries.forEach((entry) => {
+          let evaluatorX = null;
+          let evaluatorY = null;
+          let evaluatorZ = null;
+          try {
+            evaluatorX = compileParametricExpression(entry.x);
+            evaluatorY = compileParametricExpression(entry.y);
+            evaluatorZ = compileParametricExpression(entry.z);
+          } catch (error) {
+            return;
+          }
+          const stepsU = Math.max(2, Math.round((uMax - uMin) / step));
+          const stepsV = Math.max(2, Math.round((vMax - vMin) / step));
+          for (let vi = 0; vi <= stepsV; vi += 1) {
+            const v = vMin + ((vMax - vMin) * vi) / stepsV;
+            for (let ui = 0; ui <= stepsU; ui += 1) {
+              const u = uMin + ((uMax - uMin) * ui) / stepsU;
+              let px;
+              let py;
+              let pz;
+              try {
+                px = evaluatorX(u, v, logFn);
+                py = evaluatorY(u, v, logFn);
+                pz = evaluatorZ(u, v, logFn);
+              } catch (error) {
+                px = NaN;
+                py = NaN;
+                pz = NaN;
+              }
+              if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) {
+                continue;
+              }
+              if (!bounds) {
+                bounds = {
+                  xMin: px,
+                  xMax: px,
+                  yMin: py,
+                  yMax: py,
+                  zMin: pz,
+                  zMax: pz,
+                };
+              } else {
+                bounds.xMin = Math.min(bounds.xMin, px);
+                bounds.xMax = Math.max(bounds.xMax, px);
+                bounds.yMin = Math.min(bounds.yMin, py);
+                bounds.yMax = Math.max(bounds.yMax, py);
+                bounds.zMin = Math.min(bounds.zMin, pz);
+                bounds.zMax = Math.max(bounds.zMax, pz);
+              }
+            }
+          }
+        });
+
+        if (bounds) {
+          if (axisHasX) {
+            xMinFinal = xMin;
+            xMaxFinal = xMax;
+          } else if (plotEntries.length > 0) {
+            xMinFinal = Math.min(xMin, bounds.xMin);
+            xMaxFinal = Math.max(xMax, bounds.xMax);
+          } else {
+            xMinFinal = bounds.xMin;
+            xMaxFinal = bounds.xMax;
+          }
+
+          if (axisHasY) {
+            yMinFinal = yMin;
+            yMaxFinal = yMax;
+          } else if (plotEntries.length > 0) {
+            yMinFinal = Math.min(yMin, bounds.yMin);
+            yMaxFinal = Math.max(yMax, bounds.yMax);
+          } else {
+            yMinFinal = bounds.yMin;
+            yMaxFinal = bounds.yMax;
+          }
+
+          if (axisHasZ) {
+            zMinFinal = zMin;
+            zMaxFinal = zMax;
+          } else if (plotEntries.length > 0) {
+            zMinFinal = Math.min(zMin, bounds.zMin);
+            zMaxFinal = Math.max(zMax, bounds.zMax);
+          } else {
+            zMinFinal = bounds.zMin;
+            zMaxFinal = bounds.zMax;
+          }
+        }
+      }
+
+      const xSpan = xMaxFinal - xMinFinal;
+      const ySpan = yMaxFinal - yMinFinal;
+      const zSpan = zMaxFinal - zMinFinal;
+      const xMid = (xMinFinal + xMaxFinal) / 2;
+      const yMid = (yMinFinal + yMaxFinal) / 2;
+      const zMid = (zMinFinal + zMaxFinal) / 2;
       const xHalf = xSpan === 0 ? 1 : xSpan / 2;
       const yHalf = ySpan === 0 ? 1 : ySpan / 2;
       const zHalf = zSpan === 0 ? 1 : zSpan / 2;
@@ -499,8 +669,8 @@ $$
         };
       };
 
-      const stepsX = Math.max(2, Math.round(xSpan / step));
-      const stepsY = Math.max(2, Math.round(ySpan / step));
+      const stepsX = Math.max(2, Math.round((xMax - xMin) / step));
+      const stepsY = Math.max(2, Math.round((yMax - yMin) / step));
 
       plotEntries.forEach((expression, index) => {
         let evaluator = null;
@@ -575,6 +745,91 @@ $$
         }
       });
 
+      parametricEntries.forEach((entry, paramIndex) => {
+        let evaluatorX = null;
+        let evaluatorY = null;
+        let evaluatorZ = null;
+        try {
+          evaluatorX = compileParametricExpression(entry.x);
+          evaluatorY = compileParametricExpression(entry.y);
+          evaluatorZ = compileParametricExpression(entry.z);
+        } catch (error) {
+          return;
+        }
+
+        const stepsU = Math.max(2, Math.round((uMax - uMin) / step));
+        const stepsV = Math.max(2, Math.round((vMax - vMin) / step));
+        const grid = [];
+        for (let vi = 0; vi <= stepsV; vi += 1) {
+          const row = [];
+          const v = vMin + ((vMax - vMin) * vi) / stepsV;
+          for (let ui = 0; ui <= stepsU; ui += 1) {
+            const u = uMin + ((uMax - uMin) * ui) / stepsU;
+            let px;
+            let py;
+            let pz;
+            try {
+              px = evaluatorX(u, v, logFn);
+              py = evaluatorY(u, v, logFn);
+              pz = evaluatorZ(u, v, logFn);
+            } catch (error) {
+              px = NaN;
+              py = NaN;
+              pz = NaN;
+            }
+            if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(pz)) {
+              row.push(null);
+            } else {
+              row.push({ x: px, y: py, z: pz });
+            }
+          }
+          grid.push(row);
+        }
+
+        ctx.strokeStyle = plotColors[(paramIndex + plotEntries.length) % plotColors.length];
+        ctx.lineWidth = 1.4;
+
+        for (let vi = 0; vi < grid.length; vi += 1) {
+          ctx.beginPath();
+          let penDown = false;
+          for (let ui = 0; ui < grid[vi].length; ui += 1) {
+            const point = grid[vi][ui];
+            if (!point) {
+              penDown = false;
+              continue;
+            }
+            const projected = projectPoint(point.x, point.y, point.z);
+            if (!penDown) {
+              ctx.moveTo(projected.x, projected.y);
+              penDown = true;
+            } else {
+              ctx.lineTo(projected.x, projected.y);
+            }
+          }
+          ctx.stroke();
+        }
+
+        for (let ui = 0; ui <= stepsU; ui += 1) {
+          ctx.beginPath();
+          let penDown = false;
+          for (let vi = 0; vi <= stepsV; vi += 1) {
+            const point = grid[vi][ui];
+            if (!point) {
+              penDown = false;
+              continue;
+            }
+            const projected = projectPoint(point.x, point.y, point.z);
+            if (!penDown) {
+              ctx.moveTo(projected.x, projected.y);
+              penDown = true;
+            } else {
+              ctx.lineTo(projected.x, projected.y);
+            }
+          }
+          ctx.stroke();
+        }
+      });
+
       const drawAxisLine = (start, end) => {
         const projectedStart = projectPoint(...start);
         const projectedEnd = projectPoint(...end);
@@ -586,17 +841,17 @@ $$
 
       ctx.strokeStyle = '#444';
       ctx.lineWidth = 1.2;
-      if (xMin <= 0 && xMax >= 0 && yMin <= 0 && yMax >= 0 && zMin <= 0 && zMax >= 0) {
-        drawAxisLine([xMin, 0, 0], [xMax, 0, 0]);
-        drawAxisLine([0, yMin, 0], [0, yMax, 0]);
-        drawAxisLine([0, 0, zMin], [0, 0, zMax]);
+      if (xMinFinal <= 0 && xMaxFinal >= 0 && yMinFinal <= 0 && yMaxFinal >= 0 && zMinFinal <= 0 && zMaxFinal >= 0) {
+        drawAxisLine([xMinFinal, 0, 0], [xMaxFinal, 0, 0]);
+        drawAxisLine([0, yMinFinal, 0], [0, yMaxFinal, 0]);
+        drawAxisLine([0, 0, zMinFinal], [0, 0, zMaxFinal]);
       }
 
       ctx.fillStyle = '#333';
       ctx.font = '12px system-ui, sans-serif';
-      ctx.fillText(`x: [${xMin}, ${xMax}]`, 8, height - 38);
-      ctx.fillText(`y: [${yMin}, ${yMax}]`, 8, height - 22);
-      ctx.fillText(`z: [${zMin}, ${zMax}]`, 8, height - 6);
+      ctx.fillText(`x: [${xMinFinal}, ${xMaxFinal}]`, 8, height - 38);
+      ctx.fillText(`y: [${yMinFinal}, ${yMaxFinal}]`, 8, height - 22);
+      ctx.fillText(`z: [${zMinFinal}, ${zMaxFinal}]`, 8, height - 6);
     }
 
     function scheduleRender() {
