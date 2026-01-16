@@ -156,6 +156,7 @@ $$
       // const html = marked.parse(sourceWithCaret);
       // out.innerHTML = html.replace(caretToken, caretHtml);
       out.innerHTML = marked.parse(sourceWithCaret);
+      renderPlots(out);
 
       // MathJaxの準備完了待ち（初回読み込み中の事故防止）
       if (!window.MathJax || !MathJax.typesetPromise) {
@@ -175,6 +176,179 @@ $$
           scheduleRender();
         }
       }
+    }
+
+    const plotColors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
+    const plotResizeObservers = new WeakMap();
+
+    function parseRangeAttribute(value, fallback) {
+      if (!value) return fallback;
+      const matches = value.match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/gi);
+      if (!matches || matches.length < 2) return fallback;
+      const min = Number(matches[0]);
+      const max = Number(matches[1]);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return fallback;
+      return [min, max];
+    }
+
+    function compileExpression(expression) {
+      const normalized = expression
+        .replace(/\bpi\b/gi, 'Math.PI')
+        .replace(/\be\b/g, 'Math.E')
+        .replace(/\bpower\s*\(/gi, 'Math.pow(')
+        .replace(/\blog\s*\(/gi, '__log(')
+        .replace(/\bsin\s*\(/gi, 'Math.sin(')
+        .replace(/\bcos\s*\(/gi, 'Math.cos(')
+        .replace(/\btan\s*\(/gi, 'Math.tan(');
+
+      return new Function('x', '__log', `return (${normalized});`);
+    }
+
+    function renderPlots(container) {
+      const plotBlocks = Array.from(container.querySelectorAll('plots'));
+      plotBlocks.forEach((plotBlock) => {
+        const axis = plotBlock.querySelector('axis');
+        const [xMin, xMax] = parseRangeAttribute(axis?.getAttribute('x'), [-10, 10]);
+        const [yMin, yMax] = parseRangeAttribute(axis?.getAttribute('y'), [-10, 10]);
+        const plotEntries = Array.from(plotBlock.querySelectorAll('plot'))
+          .map((plotNode) => plotNode.getAttribute('y'))
+          .filter(Boolean);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'plot-container';
+        wrapper.setAttribute('data-mjx-skip', 'true');
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'plot-canvas';
+        wrapper.appendChild(canvas);
+
+        if (plotEntries.length > 0) {
+          const legend = document.createElement('div');
+          legend.className = 'plot-legend';
+          plotEntries.forEach((expression, index) => {
+            const item = document.createElement('div');
+            item.className = 'plot-legend-item';
+            const swatch = document.createElement('span');
+            swatch.className = 'plot-legend-swatch';
+            swatch.style.backgroundColor = plotColors[index % plotColors.length];
+            item.appendChild(swatch);
+            const label = document.createElement('span');
+            label.textContent = `y = ${expression}`;
+            item.appendChild(label);
+            legend.appendChild(item);
+          });
+          wrapper.appendChild(legend);
+        }
+
+        plotBlock.replaceWith(wrapper);
+        drawPlot(canvas, plotEntries, { xMin, xMax, yMin, yMax });
+
+        if (!plotResizeObservers.has(wrapper)) {
+          const observer = new ResizeObserver(() => {
+            drawPlot(canvas, plotEntries, { xMin, xMax, yMin, yMax });
+          });
+          observer.observe(wrapper);
+          plotResizeObservers.set(wrapper, observer);
+        }
+      });
+    }
+
+    function drawPlot(canvas, plotEntries, range) {
+      const { xMin, xMax, yMin, yMax } = range;
+      const width = Math.max(canvas.parentElement?.clientWidth ?? 520, 240);
+      const height = 320;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+
+      for (let i = 1; i < 5; i += 1) {
+        const x = (width * i) / 5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let i = 1; i < 5; i += 1) {
+        const y = (height * i) / 5;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+
+      const xToPx = (x) => ((x - xMin) / (xMax - xMin)) * width;
+      const yToPx = (y) => height - ((y - yMin) / (yMax - yMin)) * height;
+
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1.2;
+      if (xMin < 0 && xMax > 0) {
+        const xAxis = xToPx(0);
+        ctx.beginPath();
+        ctx.moveTo(xAxis, 0);
+        ctx.lineTo(xAxis, height);
+        ctx.stroke();
+      }
+      if (yMin < 0 && yMax > 0) {
+        const yAxis = yToPx(0);
+        ctx.beginPath();
+        ctx.moveTo(0, yAxis);
+        ctx.lineTo(width, yAxis);
+        ctx.stroke();
+      }
+
+      const logFn = (base, value) => Math.log(value) / Math.log(base);
+
+      plotEntries.forEach((expression, index) => {
+        let evaluator = null;
+        try {
+          evaluator = compileExpression(expression);
+        } catch (error) {
+          return;
+        }
+
+        ctx.strokeStyle = plotColors[index % plotColors.length];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const steps = 600;
+        let penDown = false;
+        for (let i = 0; i <= steps; i += 1) {
+          const x = xMin + ((xMax - xMin) * i) / steps;
+          let y;
+          try {
+            y = evaluator(x, logFn);
+          } catch (error) {
+            y = NaN;
+          }
+          if (!Number.isFinite(y)) {
+            penDown = false;
+            continue;
+          }
+          const px = xToPx(x);
+          const py = yToPx(y);
+          if (!penDown) {
+            ctx.moveTo(px, py);
+            penDown = true;
+          } else {
+            ctx.lineTo(px, py);
+          }
+        }
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = '#333';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`x: [${xMin}, ${xMax}]`, 8, height - 26);
+      ctx.fillText(`y: [${yMin}, ${yMax}]`, 8, height - 10);
     }
 
     function scheduleRender() {
