@@ -255,7 +255,12 @@ $$
 
     function drawPlot(canvas, plotEntries, range) {
       const { xMin, xMax, yMin, yMax } = range;
-      const width = Math.max(canvas.parentElement?.clientWidth ?? 520, 240);
+      const parent = canvas.parentElement;
+      const parentStyles = parent ? window.getComputedStyle(parent) : null;
+      const paddingLeft = parentStyles ? Number.parseFloat(parentStyles.paddingLeft) : 0;
+      const paddingRight = parentStyles ? Number.parseFloat(parentStyles.paddingRight) : 0;
+      const availableWidth = (parent?.clientWidth ?? 520) - paddingLeft - paddingRight;
+      const width = Math.max(availableWidth, 240);
       const height = 320;
       const dpr = window.devicePixelRatio || 1;
       canvas.width = width * dpr;
