@@ -29,6 +29,20 @@ Markdown 内にカスタムタグを記述することで 2D / 3D の関数プ�
 - `step` はグリッドの刻み幅です（省略時は `0.5`）。
 - `surface` は `z = f(x, y)` の形式で式を指定します。
 
+### 3D パラメトリック曲面 (x = f(u, v), y = g(u, v), z = h(u, v))
+
+```html
+<plots3d>
+  <axis u="0 6.283" v="0 3.1415" step="0.2"></axis>
+  <parametric x="cos(u) * sin(v)"
+              y="sin(u) * sin(v)"
+              z="cos(v)"></parametric>
+</plots3d>
+```
+
+- `axis` の `u`, `v` はパラメータの範囲を `min max` の順で指定します。
+- `parametric` は `x`, `y`, `z` それぞれの式を指定します。
+
 ## Demo (GitHub Pages)
 
 https://pun2beam.github.io/simpleMathEdit/
